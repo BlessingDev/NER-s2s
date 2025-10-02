@@ -1,0 +1,53 @@
+왜 꼭 생성이어야 하는가: 유연하게 OOD에 대응할 수 있는 NER 모델을 만들기 위함
+
+그렇다면 실험도 OOD에서 어떻게 작동하는지 보여주어야 한다.
+
+그럼 데이터셋을 그렇게 짜야겠네...
+
+출력 형식이 JSON이어야 하는가...는 그게 명료하니까. 그걸로 충분하다. 이 부분에서 실험적으로 무언가를 증명하고 그럴 필요는 없다고 본다.
+
+
+실험 결과
+바로 훈련:
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37630
+  parsing_accuracy: 0.9995218869528262
+NER Evaluation Results (without category):
+  precision: 0.732565453258904
+  recall: 0.7703039259251604
+  f1: 0.7509608652068568
+
+인코더 훈련:
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37628
+  parsing_accuracy: 0.9994687632809179
+NER Evaluation Results (without category):
+  precision: 0.7364770740093067
+  recall: 0.7707674173335815
+  f1: 0.7532321869742485
+
+디코더 훈련:
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 36330
+  parsing_accuracy: 0.9649915002124947
+NER Evaluation Results (without category):
+  precision: 0.7064120115307133
+  recall: 0.6802460799759922
+  f1: 0.693082173082173
+
+
+여기서부터는 scorer 방식 학습 모델 결과
+fewnerd-small, big으로 혼합 학습
+
+fewnerd-small 결과:
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37618
+  parsing_accuracy: 0.999203144921377
+NER Evaluation Results (without category):
+  precision: 0.6013755833947433
+  recall: 0.632858383654562
+  f1: 0.6167154523973863
