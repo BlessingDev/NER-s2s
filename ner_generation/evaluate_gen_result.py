@@ -121,7 +121,7 @@ if __name__ == "__main__":
     # args = parser.parse_args()
     args = parser.parse_args([
         "--prediction_file",
-        "/workspace/datas/generation/flan-t5-base_fewnerd-tuned_fewnerd_small.csv"
+        "/workspace/datas/generation/flan-t5-base_encoder_fewnerd-tuned_fewnerd_small.csv"
     ])
     
     main(args)
