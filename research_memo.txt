@@ -8,6 +8,7 @@
 
 
 실험 결과
+few-nerd big으로 실험
 바로 훈련:
 NER Evaluation Results:
   total_samples: 37648
@@ -38,8 +39,9 @@ NER Evaluation Results (without category):
   recall: 0.6802460799759922
   f1: 0.693082173082173
 
+---
 
-여기서부터는 scorer 방식 학습 모델 결과
+여기서부터는 리스트로 주고, type을 생성하도록 학습한 모델 결과
 fewnerd-small, big으로 혼합 학습
 
 fewnerd-small 결과:
@@ -52,6 +54,7 @@ NER Evaluation Results (without category):
   recall: 0.632858383654562
   f1: 0.6167154523973863
 
+인코더 학습 후
 NER Evaluation Results:
   total_samples: 37648
   parsed_samples: 37616
@@ -60,3 +63,137 @@ NER Evaluation Results (without category):
   precision: 0.6016718831251656
   recall: 0.6336395292367146
   f1: 0.6172420734776045
+
+---
+1. 리스트로 entity type 제시
+2. conll2003으로 학습, conll2003에서 평가
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.875
+  recall: 0.8855721393034826
+  f1: 0.8802543270929001
+
+1. 리스트로 entity type 제시
+2. conll2003에서 random entity list로 학습, conll2003에서 평가
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.8710647329324372
+  recall: 0.8750888415067519
+  f1: 0.873072150327956
+
+---
+
+1. 리스트로 entity type 제시
+2. conll2003으로 학습, conll2003에서 평가
+3. flan-t5-large 사용
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9063380281690141
+  recall: 0.9147121535181236
+  f1: 0.9105058365758755
+
+1. 리스트로 entity type 제시
+2. conll2003으로 학습, conll2003에서 평가
+3. flan-t5-large 사용
+4. ner classification 학습한 인코더로 초기화
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9092830720450943
+  recall: 0.9171997157071784
+  f1: 0.9132242370632464
+
+1. 리스트로 entity type 제시
+2. conll2003으로 학습, conll2003에서 평가
+3. flan-t5-large 사용
+4. ner switch 학습한 인코더로 초기화
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9064368624692226
+  recall: 0.9157782515991472
+  f1: 0.911083613222556
+
+1. 리스트로 entity type 제시
+2. conll2003에서 random entity list로 학습, conll2003에서 평가
+3. flan-t5-large 사용
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9074897705034691
+  recall: 0.90636105188344
+  f1: 0.9069250600053338
+
+1. 리스트로 entity type 제시
+2. conll2003 random entity list로 학습, conll2003에서 평가
+3. flan-t5-large 사용
+4. ner classification 학습한 인코더로 초기화
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9077222812610698
+  recall: 0.9106254442075338
+  f1: 0.9091715451481285
+
+---
+
+1. 리스트로 entity type 제시
+2. fewnerd small로만 학습한
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37616
+  parsing_accuracy: 0.9991500212494687
+NER Evaluation Results (without category):
+  precision: 0.6072491393227394
+  recall: 0.6453449915250734
+  f1: 0.6257177500977041
+
+1. 리스트로 entity type 제시
+2. fewnerd small에 random entity list로 학습한
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37644
+  parsing_accuracy: 0.9998937526561836
+NER Evaluation Results (without category):
+  precision: 0.611891490877854
+  recall: 0.6471608507123684
+  f1: 0.6290321771373236
+
+1. 리스트로 entity type 제시
+2. fewnerd small에 random entity list로 학습한
+3. 인코더 binary 경계 학습
+
+---
+1. 리스트로 entity type 제시
+2. fewnerd small에 random entity list로 학습한
+3. flan-t5-large 모델 사용
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37648
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.6640317795544828
+  recall: 0.6813894450062951
+  f1: 0.6725986441679357
+
+1. 리스트로 entity type 제시
+2. fewnerd small에 random entity list로 학습한
+3. flan-t5-large 모델 사용
+4. 인코더 classification 학습
