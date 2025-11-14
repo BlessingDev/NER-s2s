@@ -17,6 +17,8 @@ import json
 import argparse
 import os
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 # 1. SETUP: LOAD AND PARSE THE DATA
 # ------------------------------------
 # We'll use Flan-T5, which is excellent for instruction-based tasks.
@@ -24,15 +26,22 @@ MODEL_CHECKPOINT = "google/flan-t5-base"
 TRAIN_DATASET_PATH = "/workspace/datas/few-nerd/supervised/train.preprocessed.big.csv"
 VAL_DATASET_PATH = "/workspace/datas/few-nerd/supervised/dev.preprocessed.big.csv"
 
+# We frame the task with a prefix to guide the model.
+#PREFIX = "Extract named entities as a Json format. Select entity type from the given list.\nEntity Types: {entity_types}\nSentence: ".format(entity_types=", ".join(entity_types))
+PREFIX = "Extract named entities as a Json format. Select entity type from the given list. // {entity_types} // {sentence} // "
+PREFIX_INERD = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} // <CT> "
+# Refer to entity types by their index from the given list.
+SURFIX = "\n JSON result: "
+#PREFIX_SIM = "Entity Types: {entity_types}\n".format(entity_types=", ".join(entity_types))
 
 def load_encoder_weight(args, model):
     # Load the encoder weights from the specified checkpoint
     if args.encoder_weight is not None:
         fine_tuned_classifier = None
-        if "flan-t5" in args.model_checkpoint:
-            fine_tuned_classifier = T5ForTokenClassification.from_pretrained(args.encoder_weight)
-        elif "t5gemma" in args.model_checkpoint:
+        if "t5gemma" in args.model_checkpoint:
             fine_tuned_classifier = T5GemmaForTokenClassification.from_pretrained(args.encoder_weight)
+        elif "t5" in args.model_checkpoint:
+            fine_tuned_classifier = T5ForTokenClassification.from_pretrained(args.encoder_weight)
         
         fine_tuned_state_dict = fine_tuned_classifier.state_dict()
         
@@ -59,10 +68,6 @@ def main(args):
     tokenizer.model_max_length = 1024
     model_name = args.model_checkpoint.split("/")[-1]
 
-    if "flan-t5" in model_name:
-        new_words = ['{', '}']
-        tokenizer.add_tokens(new_words)
-
     # load entity types
     entity_types_dict = []
     with open(args.entity_types_file, "r", encoding="utf-8") as f:
@@ -72,29 +77,64 @@ def main(args):
 
     # 2. PREPROCESS THE DATA
     # ------------------------------------
-    # We frame the task with a prefix to guide the model.
-    #PREFIX = "Extract named entities as a Json format. Select entity type from the given list.\nEntity Types: {entity_types}\nSentence: ".format(entity_types=", ".join(entity_types))
-    PREFIX = "Extract named entities as a Json format. Select entity type from the given list.\nEntity Types: {entity_types}\nSentence: "
-    SURFIX = "\n JSON result: "
-    #PREFIX_SIM = "Entity Types: {entity_types}\n".format(entity_types=", ".join(entity_types))
+
+    # 3. FINE-TUNE THE MODEL
+    # ------------------------------------
+    # Load the pre-trained T5 model
+    if "t5gemma" in model_name:
+        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, attn_implementation='eager', device_map="auto", dropout_rate=args.dropout_rate, dtype=torch.bfloat16, use_cache=False)
+    elif "t5" in model_name:
+        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, device_map="auto")
+
+
+    load_encoder_weight(args, model)
+        
+    if args.token_setting == "t5_json":
+        tokenizer.add_tokens(['{', '}'])
+        model.resize_token_embeddings(len(tokenizer))
+    elif args.token_setting == "inerd":
+        tokenizer.add_tokens(['<CT>', '<ES>', '<TCS>'])
+        model.resize_token_embeddings(len(tokenizer))
 
     def preprocess_function(examples):
         # Prepare inputs with the prefix
         inputs = []
-        for sentence, type  in zip(examples["Sentence"], examples["types"]):
+        for idx in range(len(examples["Sentence"])):
             entity_list = []
             if args.dataset_name == "mix":
-                entity_list = entity_types_dict[type]
+                entity_list = entity_types_dict[examples["types"][idx]]
+            elif args.dataset_name == "random":
+                entity_list = examples["entity_list"][idx].split(" ")
+            elif args.dataset_name == "mix_random":
+                entity_list = examples["entity_list"][idx].split(" ")
+                for idx in range(len(entity_list)):
+                    entity_list[idx] = f"{idx}:{entity_list[idx]}"
+                
             else:
                 entity_list = entity_types_dict[args.dataset_name]
-            inputs.append(PREFIX.format(entity_types=", ".join(entity_list)) + sentence + '\n')
+
+            sentence = ""
+            if args.token_setting == "inerd":
+                sentence = PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx])
+            else:
+                sentence = PREFIX.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx])
+            
+            if args.chat_template:
+                inputs.append([{"role": "user", "content": sentence}])
+            else:
+                inputs.append(sentence)
 
         #inputs = [PREFIX_SIM + doc + '\n' for doc in examples["Sentence"]]
+        if args.chat_template:
+            inputs = tokenizer.apply_chat_template(inputs, tokenize=False, add_generation_token=True)
+            
         model_inputs = tokenizer(inputs, truncation=True)
 
         # Tokenize the target NER JSON strings
         # The `text_target` is the NER string itself.
-        labels = tokenizer(text_target=examples["NER"], truncation=True)
+        # 빈 문자열이 NoneType으로 들어오는 문제를 해결
+        ner_strings = [ner if (ner is not None) else "" for ner in examples["NER"]]
+        labels = tokenizer(text_target=ner_strings, truncation=True)
 
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
@@ -102,19 +142,7 @@ def main(args):
     # Apply the preprocessing to our datasets
     tokenized_train_dataset = train_dataset.map(preprocess_function, batched=True)
     tokenized_val_dataset = val_dataset.map(preprocess_function, batched=True)
-
-
-    # 3. FINE-TUNE THE MODEL
-    # ------------------------------------
-    # Load the pre-trained T5 model
-    if "t5gemma" in model_name:
-        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, attn_implementation='eager', device_map="auto", dropout_rate=args.dropout_rate, dtype=torch.bfloat16, use_cache=False)
-    elif "flan-t5" in model_name:
-        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, device_map="auto")
-        model.resize_token_embeddings(len(tokenizer))
-
-    load_encoder_weight(args, model)
-
+    
     # Data collator will dynamically pad inputs and labels
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
@@ -124,18 +152,22 @@ def main(args):
         output_dir=args.output_dir,
         eval_strategy="epoch",
         save_strategy="epoch",
+        do_train=True,
         do_eval=True,
+        resume_from_checkpoint=args.resume_from_checkpoint,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        lr_scheduler_type="cosine",
+        lr_scheduler_type="cosine_with_restarts",
+        lr_scheduler_kwargs={"num_cycles": 10},
         warmup_steps=args.warmup_steps,
-        logging_steps=200,
+        logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.batch_size,
         weight_decay=args.weight_decay,
         num_train_epochs=args.train_epochs,
-        predict_with_generate=True,
+        generation_max_length=256,
         bf16=bf16_precision, # Use mixed precision if a GPU is available
+        predict_with_generate=True,
         gradient_checkpointing=True,
         push_to_hub=False,
         report_to="tensorboard",
@@ -157,7 +189,7 @@ def main(args):
     )
 
     # Start training! 🚀
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
 
     # Save the final model
     trainer.save_model(os.path.join(args.output_dir, "final_model"))
@@ -190,7 +222,18 @@ if __name__ == "__main__":
         "--warmup_steps", type=int, default=500
     )
     parser.add_argument(
+        "--logging_steps", type=int, default=200
+    )
+    parser.add_argument(
         "--batch_size", type=int, default=8
+    )
+    parser.add_argument(
+        "--chat_template",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        action="store_true"
     )
     parser.add_argument(
         "--entity_types_file", 
@@ -205,6 +248,12 @@ if __name__ == "__main__":
         help="Name of the dataset used for specifying entity types"
     )
     parser.add_argument(
+        "--token_setting",
+        type=str,
+        default="normal",
+        help="Token setting: normal, t5_json, inerd"
+    )
+    parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
         default=1,
@@ -214,11 +263,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     '''args = parser.parse_args(
         [
-            "--model_checkpoint", "google/t5gemma-b-b-prefixlm-it",
+            "--model_checkpoint", "google/flan-t5-base",
+#            "--encoder_weight", "/workspace/model_dir/flan-t5-large/encoder-classification-conll2003-ner-lr2e-5-cosine_restart/final_model",
             "--output_dir", "/workspace/model_dir/test",
-            "--train_file", "/workspace/datas/few-nerd/supervised/train.preprocessed.mix.csv",
-            "--validation_file", "/workspace/datas/few-nerd/supervised/dev.preprocessed.mix.csv",
-            "--dataset_name", "mix",
+            "--train_file", "/workspace/datas/conll2003/train.inerd.csv",
+            "--validation_file", "/workspace/datas/conll2003/testa.inerd.csv",
+            "--dataset_name", "conll2003",
+            "--token_setting", "inerd",
         ]
     )'''
     

@@ -1,0 +1,362 @@
+------conll2003------
+---flan-t5-base---
+2. switch classification
+3. conll2003
+4. lr 8e-5, dropout10_mlp, cycle 10
+Precision: 0.9112
+Recall:    0.9455
+F1-Score:  0.9280
+Accuracy:  0.9919
+
+lr 2e-4, mlp, dropout 0, smoothing 0.1
+Precision: 0.9163
+Recall:    0.9439
+F1-Score:  0.9299
+Accuracy:  0.9921
+
+lr 2e-4, mlp, dropout 0, smoothing 0.1
+threshold 0.8
+Precision: 0.9313
+Recall:    0.9329
+F1-Score:  0.9321
+Accuracy:  0.9925
+
+1. lr 1e-4, dropout 20, cycle 10
+2. dynamic weight
+3. threshold 0.9
+Precision: 0.9150
+Recall:    0.9394
+F1-Score:  0.9270
+Accuracy:  0.9918
+
+1. lr 2e-4, dropout20, cycle 10
+2. threshold 0.75
+Precision: 0.9168
+Recall:    0.9406
+F1-Score:  0.9285
+Accuracy:  0.9920
+
+1. lr 1e-4, dropout50, cycle 10
+2 threshold 0.98
+Precision: 0.9260
+Recall:    0.9327
+F1-Score:  0.9294
+Accuracy:  0.9921
+
+---flan-t5-large---
+2. switch classification
+3. conll2003
+dropout20_mlp
+Precision: 0.9289
+Recall:    0.9273
+F1-Score:  0.9281
+Accuracy:  0.9920
+
+2. switch classification
+3. conll2003
+dropout 50, mlp, lr 2e-4, cycle 10
+Precision: 0.9206
+Recall:    0.9281
+F1-Score:  0.9244
+Accuracy:  0.9916
+
+2. switch classification
+dropout 20, mlp, lr 2e-4, cycle 10
+smoothing 0.1
+Precision: 0.9265
+Recall:    0.9278
+F1-Score:  0.9271
+Accuracy:  0.9919
+
+2. switch classification
+dropout 20, mlp, lr 2e-4, cycle 10
+smoothing 0.2
+threshold 0.6
+Precision: 0.9312
+Recall:    0.9301
+F1-Score:  0.9307
+Accuracy:  0.9923
+
+2. switch classification
+dropout 20, mlp, lr 2e-4, cycle 10
+smoothing 0.3
+Precision: 0.9282
+Recall:    0.9213
+F1-Score:  0.9248
+Accuracy:  0.9917
+
+2. switch classification
+dropout 20, mlp, lr 2e-4, cycle 10
+smoothing 0.4
+Precision: 0.9287
+Recall:    0.9269
+F1-Score:  0.9278
+Accuracy:  0.9920
+
+------fewnerd------
+
+1. flan-t5-base
+2. switch classification
+3. few-nerd
+
+------wnut17------
+---flan-t5-base---
+1. flan-t5-base
+2. switch classification
+3. wnut17
+4. dropout10, lr 2e-4, cycle 10
+Precision: 0.6520
+Recall:    0.4635
+F1-Score:  0.5418
+Accuracy:  0.9892
+
+1. flan-t5-base
+2. switch classification
+3. wnut17
+4. non-mlp, dropout10, lr 2e-4, cycle 10
+Precision: 0.6440
+Recall:    0.4291
+F1-Score:  0.5150
+Accuracy:  0.9889
+
+1. flan-t5-base
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 5
+Precision: 0.7092
+Recall:    0.4122
+F1-Score:  0.5214
+Accuracy:  0.9896
+
+1. flan-t5-base
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 10
+Precision: 0.6480
+Recall:    0.4680
+F1-Score:  0.5435
+Accuracy:  0.9892
+
+2. switch classification
+3. wnut17
+4. mlp, dropout20, lr 2e-4, cycle 10
+5. threshold 0.4
+Precision: 0.6217
+Recall:    0.4862
+F1-Score:  0.5456
+Accuracy:  0.9889
+
+1. mlp, dropout20, lr 2e-4, cycle 10
+2. dynamic class weight
+Precision: 0.6381
+Recall:    0.4757
+F1-Score:  0.5450
+Accuracy:  0.9891
+
+1. dropout20, lr 2e-4, cycle 10
+2. smoothing 0.1, reduction sum
+Precision: 0.6571
+Recall:    0.4438
+F1-Score:  0.5298
+Accuracy:  0.9892
+
+1. flan-t5-base
+2. switch classification
+3. wnut17
+4. dropout20, lr 8e-5, cycle 10
+Precision: 0.5525
+Recall:    0.4796
+F1-Score:  0.5135
+Accuracy:  0.9875
+
+1. dynamic weighting
+2. 모델 선택 f1
+3. dropout 0, smoothing 0, lr 2e-4, cycle 10
+4. threshold 0.9
+Precision: 0.6263
+Recall:    0.4817
+True Negative Rate: 0.9960
+F1-Score:  0.5446
+Accuracy:  0.9889
+
+1. dynamic weighting
+2. 모델 선택 auprc
+3. dropout 0, smoothing 0, lr 2e-4, cycle 10
+Precision: 0.5499
+Recall:    0.5101
+True Negative Rate: 0.9942
+F1-Score:  0.5293
+Accuracy:  0.9875
+
+1. dynamic weighting, constant 0.013
+2. 모델 선택 auprc
+3. dropout 10, smoothing 0, lr 2e-4, cycle 10
+4. threshold 0.9
+Precision: 0.6123
+Recall:    0.4780
+True Negative Rate: 0.9958
+F1-Score:  0.5369
+Accuracy:  0.9887
+
+1. dynamic weighting
+2. 모델 선택 f1
+3. dropout 10, smoothing 0, lr 2e-4, cycle 10
+4. threshold 0.9
+Precision: 0.6053
+Recall:    0.4885
+True Negative Rate: 0.9956
+F1-Score:  0.5407
+Accuracy:  0.9886
+
+1. dynamic weighting
+2. 모델 선택 auprc
+3. dropout 10, smoothing 0, lr 2e-4, cycle 10
+4. threshold 0.9
+Precision: 0.5805
+Recall:    0.4907
+True Negative Rate: 0.9951
+F1-Score:  0.5318
+Accuracy:  0.9881
+
+---flan-t5-large---
+2. switch classification
+3. wnut17
+4. dropout10, lr 1e-4, cycle 10
+Precision: 0.6348
+Recall:    0.4288
+F1-Score:  0.5119
+Accuracy:  0.9888
+
+2. switch classification
+3. wnut17
+4. dropout10, lr 2e-4, cycle 10
+Precision: 0.6824
+Recall:    0.4343
+F1-Score:  0.5308
+Accuracy:  0.9894
+
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 5
+Precision: 0.6529
+Recall:    0.4243
+F1-Score:  0.5144
+Accuracy:  0.9890
+
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 10
+Precision: 0.6760
+Recall:    0.4383
+F1-Score:  0.5318
+Accuracy:  0.9894
+
+2. switch classification
+3. wnut17
+4. dropout20, lr 4e-4, cycle 10
+Precision: 0.6032
+Recall:    0.4533
+F1-Score:  0.5176
+Accuracy:  0.9884
+
+2. switch classification
+3. wnut17
+4. dropout30, lr 2e-4, cycle 10
+Precision: 0.6713
+Recall:    0.4359
+F1-Score:  0.5286
+Accuracy:  0.9893
+
+2. switch classification
+3. wnut17
+4. dropout30, lr 4e-4, cycle 10
+Precision: 0.6676
+Recall:    0.3901
+F1-Score:  0.4924
+Accuracy:  0.9889
+
+2. switch classification
+3. wnut17
+4. dropout40, lr 2e-4, cycle 10
+Precision: 0.6864
+Recall:    0.4275
+F1-Score:  0.5268
+Accuracy:  0.9894
+
+2. switch classification
+3. wnut17
+4. dropout40, lr 4e-4, cycle 10
+Precision: 0.6610
+Recall:    0.4085
+F1-Score:  0.5050
+Accuracy:  0.9890
+
+2. switch classification
+3. wnut17
+4. dropout50, lr 2e-4, cycle 10
+Precision: 0.6563
+Recall:    0.4625
+F1-Score:  0.5426
+Accuracy:  0.9893
+
+2. switch classification
+3. wnut17
+4. dropout50, lr 4e-4, cycle 10
+Precision: 0.6679
+Recall:    0.3948
+F1-Score:  0.4963
+Accuracy:  0.9890
+
+2. switch classification
+3. wnut17
+4. dropout50, lr 6e-4, cycle 10
+Precision: 0.6434
+Recall:    0.4246
+F1-Score:  0.5116
+Accuracy:  0.9889
+
+1. dynamic weighting
+2. 모델 선택 auprc
+3. dropout 10, smoothing 0, lr 2e-4, cycle 10
+4. threshold 0.85
+Precision: 0.6420
+Recall:    0.4493
+True Negative Rate: 0.9965
+F1-Score:  0.5286
+Accuracy:  0.9890
+
+---xlm-roberta-base---
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 10
+Precision: 0.7102
+Recall:    0.3012
+F1-Score:  0.4230
+Accuracy:  0.9894
+
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 5
+
+------mit_movie------
+---flan-t5-base---
+1. dropout10, lr 2e-4, cycle 10
+Precision: 0.8545
+Recall:    0.9425
+F1-Score:  0.8964
+Accuracy:  0.9876
+
+------mit_restaurant------
+---flan-t5-base---
+1. dropout10, lr 2e-4, cycle 10
+Precision: 0.8694
+Recall:    0.9170
+F1-Score:  0.8926
+Accuracy:  0.9886
+
+------jnlpba------
+
+1. flan-t5-base
+2. switch classification
+3. jnlpba
+

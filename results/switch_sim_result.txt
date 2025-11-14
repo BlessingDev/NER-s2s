@@ -1,0 +1,18 @@
+
+------wnut17------
+---flan-t5-base---
+2. switch classification
+3. wnut17
+4. dropout20, lr 2e-4, cycle 10
+Precision: 0.6341
+Recall:    0.4449
+F1-Score:  0.5229
+Accuracy:  0.9888
+
+---xlm-roberta-base---
+1. wnut17
+2. dropout20, lr 1e-4, cycle 10
+Precision: 0.7436
+Recall:    0.2949
+F1-Score:  0.4223
+Accuracy:  0.9896

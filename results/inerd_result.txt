@@ -1,0 +1,165 @@
+1. conll2003 학습
+2. flan-t5-base 사용
+3. decoding 전략 없음
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3682
+  parsing_accuracy: 0.9997284822155851
+NER Evaluation Results (without category):
+  precision: 0.8821159572604659
+  recall: 0.8997677327139539
+  f1: 0.8908544135857066
+
+1. conll2003 학습
+2. flan-t5-base 사용
+3. inerd decoding
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3682
+  parsing_accuracy: 0.9997284822155851
+NER Evaluation Results (without category):
+  precision: 0.882270497547302
+  recall: 0.8997677327139539
+  f1: 0.8909332153914198
+
+1. conll2003 학습
+2. flan-t5-base 사용
+3. switch encoder 가중치 사용
+4. inerd decoding
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.8904944289693594
+  recall: 0.9088486140724946
+  f1: 0.8995779106577559
+
+1. conll2003 학습
+2. flan-t5-base 사용
+3. switch encoder 가중치 사용
+4. random entity list로 학습
+5. inerd decoding
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3682
+  parsing_accuracy: 0.9997284822155851
+NER Evaluation Results (without category):
+  precision: 0.8963393171418514
+  recall: 0.9099517598713597
+  f1: 0.9030942459437893
+
+---
+
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9184353622171549
+  recall: 0.9303482587064676
+  f1: 0.9243534292523612
+
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+4. fewnred classification 학습 인코더 가중치
+! 점수 떨어짐
+
+---학습률 4e-5---
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+4. conll switch 학습 인코더 가중치
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9099756690997567
+  recall: 0.9303482587064676
+  f1: 0.9200492004920049
+점수 떨어짐
+
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+4. conll switch 학습 인코더 가중치
+5. random entity list 학습
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9159767482825436
+  recall: 0.923951670220327
+  f1: 0.9199469261388766
+점수 떨어짐
+------
+
+---학습률 3e-5---
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+4. conll switch 학습 인코더 가중치
+
+
+1. conll2003 학습
+2. flan-t5-large 사용
+3. inerd decoding
+4. conll switch 학습 인코더 가중치
+5. random entity list 학습
+
+
+------fewnerd------
+1. flan-t5-base
+2. inerd decoding
+3. 10 epoch, 8e-5 lr
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37644
+  parsing_accuracy: 0.9998937526561836
+NER Evaluation Results (without category):
+  precision: 0.6501810353263529
+  recall: 0.6863984793074237
+  f1: 0.6677990632600961
+
+1. gemma-3-270m-it
+2. inerd decoding
+3. 10 epoch, 8e-5 lr
+NER Evaluation Results:
+  total_samples: 37648
+  parsed_samples: 37455
+  parsing_accuracy: 0.9948735656608585
+NER Evaluation Results (without category):
+  precision: 0.5720821895017053
+  recall: 0.5706106870229007
+  f1: 0.5713454907988202
+
+------ace2005------
+1. flan-t5-base
+2. inerd decoding
+3. 20 epoch, 8e-5 lr
+NER Evaluation Results:
+  total_samples: 1170
+  parsed_samples: 1170
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.799786438868126
+  recall: 0.8206720233747261
+  f1: 0.8100946372239748
+
+1. gemma-3-270m-it
+2. inerd decoding
+3. 20 epoch, 8e-5 lr
+NER Evaluation Results:
+  total_samples: 1170
+  parsed_samples: 1170
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.6772518474136209
+  recall: 0.6192476260043828
+  f1: 0.6469522083373079

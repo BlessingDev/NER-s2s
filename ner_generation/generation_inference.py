@@ -25,6 +25,17 @@ Sentence: Also worth mentioning is the ultramarathon CajaMar Tenerife Bluetrail 
 NER_result: {'event': ['CajaMar Tenerife Bluetrail'], 'location': ['Spain', 'Europe']}
 """
 
+#PREFIX = "Extract named entities as a Json format. \nNow, given the sentence: "
+PREFIX = "Extract named entities as a Json format. Select entity type from the given list. // {entity_types} // {sentence} // "
+PREFIX_INERD = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} // <CT> "
+PREFIX_INERD_TEMPLATE = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} "
+LINE_BREAK_INDICATOR = " //"
+SURFIX = "\n JSON result: "
+few_shot_PREFIX = f"Extract named entities as a Json format. Examples are: {data_string}\nNow, given the sentence: "
+
+MAX_INPUT_LENGTH = 1024
+MAX_TARGET_LENGTH = 512
+
 def main(args):
     if len(args.output_file) == 0:
         time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H_%M")
@@ -36,21 +47,23 @@ def main(args):
         entity_types_dict = json_data
     
     test_dataset = Dataset.from_csv(args.data_file)
-    #PREFIX = "Extract named entities as a Json format. \nNow, given the sentence: "
-    PREFIX = "Extract named entities as a Json format. Select entity type from the given list.\nEntity Types: {entity_types}\nSentence: ".format(entity_types=", ".join(entity_types_dict[args.dataset_name]))
-    SURFIX = "\n JSON result: "
-    few_shot_PREFIX = f"Extract named entities as a Json format. Examples are: {data_string}\nNow, given the sentence: "
-
-    MAX_INPUT_LENGTH = 1024
-    MAX_TARGET_LENGTH = 512
+    if args.sample_testset < 1.0:
+        test_dataset = test_dataset.shuffle(seed=42).select(range(int(len(test_dataset)*args.sample_testset)))
     
     # Load the fine-tuned model and tokenizer
     
     if args.decoder_model:
-        saved_model = AutoModelForCausalLM.from_pretrained(
-            args.model_checkpoint,
-            device_map="auto"
-        )
+        if "gemma-3" in args.model_checkpoint:
+            from model_code.inerd_modeling_gemma3 import Gemma3ForCausalLM
+            saved_model = Gemma3ForCausalLM.from_pretrained(
+                args.model_checkpoint,
+                device_map="auto"
+            )
+        else:
+            saved_model = AutoModelForCausalLM.from_pretrained(
+                args.model_checkpoint,
+                device_map="auto"
+            )
     else:
         if "t5gemma" in args.model_checkpoint:
             saved_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -59,19 +72,56 @@ def main(args):
                 attn_implementation='eager',
                 dtype=torch.bfloat16
             )
-        else:
-            saved_model = AutoModelForSeq2SeqLM.from_pretrained(
+        elif "t5" in args.model_checkpoint:
+            from model_code.inerd_modeling_t5 import T5ForConditionalGeneration
+            saved_model = T5ForConditionalGeneration.from_pretrained(
                 args.model_checkpoint,
                 device_map="auto"
             )
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.model_checkpoint)
+    if args.prompt_type == "inerd":
+        # Initialize iNERD special tokens
+        if args.decoder_model:
+            saved_model.initialize_inerd(
+                line_break_indicator=tokenizer.encode(LINE_BREAK_INDICATOR, add_special_tokens=False),
+                start_of_turn_id=tokenizer.convert_tokens_to_ids("<start_of_turn>"),
+                end_of_turn_id=tokenizer.convert_tokens_to_ids("<end_of_turn>"),
+                ct_token_id=tokenizer.convert_tokens_to_ids("<CT>"),
+                space_token_id=tokenizer.encode(" ", add_special_tokens=False)[0],
+                es_token_id=tokenizer.convert_tokens_to_ids("<ES>"),
+                tcs_token_id=tokenizer.convert_tokens_to_ids("<TCS>")
+            )
+        else:
+            saved_model.initialize_inerd(
+                line_break_indicator=tokenizer.encode(LINE_BREAK_INDICATOR, add_special_tokens=False),
+                ct_token_id=tokenizer.convert_tokens_to_ids("<CT>"),
+                space_token_id=tokenizer.encode(" ", add_special_tokens=False),
+                es_token_id=tokenizer.convert_tokens_to_ids("<ES>"),
+                tcs_token_id=tokenizer.convert_tokens_to_ids("<TCS>")
+            )
     
     def generate_predictions_s2s(batch):
         """Generates NER JSON for a batch of sentences."""
         # Prepare inputs with the prefix
-        inputs_with_prefix = [PREFIX + sentence + "\n" for sentence in batch["Sentence"]]
+        inputs_with_prefix = []
+        for idx in range(len(batch["Sentence"])):
+            entity_list = []
+            if args.dataset_name == "mix":
+                entity_list = entity_types_dict[batch["types"][idx]]
+            elif args.dataset_name == "random":
+                entity_list = batch["entity_list"][idx].split(" ")
+                for idx in range(len(entity_list)):
+                    entity_list[idx] = f"{idx}:{entity_list[idx]}"
+            else:
+                entity_list = entity_types_dict[args.dataset_name]
+            
+            if args.prompt_type == "inerd":
+                inputs_with_prefix.append(PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx]))
+            else:
+                inputs_with_prefix.append(PREFIX.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx]))
+        #inputs_with_prefix = [PREFIX + sentence + "\n" for sentence in batch["Sentence"]]
         
         # Tokenize the entire batch
         inputs = tokenizer(
@@ -85,6 +135,7 @@ def main(args):
         # Move tokenized inputs to the same device as the model
         inputs = {k: v.to(saved_model.device) for k, v in inputs.items()}
 
+        saved_model.initialize_inerd_batch(inputs["input_ids"])
         # Generate outputs
         output_sequences = saved_model.generate(
             input_ids=inputs["input_ids"],
@@ -99,23 +150,64 @@ def main(args):
         return {"generated_ner": predictions}
     
     pipe = None
-    if args.decoder_model:
+    if args.pipeline and not args.decoder_model:
+        # For seq2seq models
+        pipe = pipeline("text2text-generation", model=saved_model, tokenizer=tokenizer, batch_size=args.batch_size)
+    elif args.decoder_model:
         pipe = pipeline("text-generation", model=saved_model, tokenizer=tokenizer, batch_size=args.batch_size)
+        pipe.tokenizer.padding_side = "left"  # For causal
+        pipe.tokenizer.pad_token_id = tokenizer.eos_token_id
         
-    def generate_prediction_causal(batch):
-        inputs_with_prefix = [[{"role": "user", "content": PREFIX + sentence}] for sentence in batch["Sentence"]]
+    def generate_prediction_pipeline(batch):
+        REGULAR_TERM = "Generate only one JSON result without any additional text. \n"
+        inputs_with_prefix = []
+        for idx in range(len(batch["Sentence"])):
+            entity_list = []
+            if args.dataset_name == "mix":
+                entity_list = entity_types_dict[batch["types"][idx]]
+            elif args.dataset_name == "random":
+                entity_list = batch["entity_list"][idx].split(" ")
+                for idx in range(len(entity_list)):
+                    entity_list[idx] = f"{idx}:{entity_list[idx]}"
+            else:
+                entity_list = entity_types_dict[args.dataset_name]
+                
+            if args.prompt_type == "inerd":
+                user_message = PREFIX_INERD_TEMPLATE.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx])
+            else:
+                user_message = PREFIX.format(entity_types=", ".join(entity_list)) + batch["Sentence"][idx]
+            
+            if args.zero_shot:
+                user_message += REGULAR_TERM
+            
+            inputs_with_prefix.append([{"role": "user", "content": user_message}])
 
         prompts = pipe.tokenizer.apply_chat_template(inputs_with_prefix, tokenize=False, add_generation_prompt=True)
         
-        outputs = pipe(prompts, max_new_tokens=MAX_TARGET_LENGTH, disable_compile=True)
-
-        predictions = [o[0]["generated_text"][len(prompts[i]):] for i, o in enumerate(outputs)]
+        if args.prompt_type == "inerd":
+            #prompts = [prompt + "<CT> " for prompt in prompts]
+            
+            saved_model.initialize_inerd_batch(pipe.tokenizer(prompts, padding=True, return_tensors="pt").input_ids)
+        
+        outputs = pipe(prompts, max_new_tokens=MAX_TARGET_LENGTH)
+        
+    
+        predictions = None
+        if args.decoder_model:
+            predictions = [o[0]["generated_text"][len(prompts[i]):] for i, o in enumerate(outputs)]
+            
+            # <CT> 제거하기
+            if args.prompt_type == "inerd":
+                for i in range(len(predictions)):
+                    predictions[i] = predictions[i][4:].strip()
+        else:
+            predictions = [o["generated_text"] for o in outputs]
 
         return {"generated_ner": predictions}
-
+    
     generate_prediction_func = None
-    if args.decoder_model:
-        generate_prediction_func = generate_prediction_causal
+    if args.pipeline or args.decoder_model:
+        generate_prediction_func = generate_prediction_pipeline
     else:
         generate_prediction_func = generate_predictions_s2s
 
@@ -151,6 +243,14 @@ if __name__ == "__main__":
         action="store_true"
     )
     parser.add_argument(
+        "--pipeline",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--zero_shot",
+        action="store_true"
+    )
+    parser.add_argument(
         "--data_file",
         type=str,
         default="/workspace/datas/few-nerd/supervised/test.preprocessed.big.csv"
@@ -163,16 +263,31 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_file",
         type=str,
-        default=""
+        default="/workspace/datas/generated/inference_results.csv"
+    )
+    parser.add_argument(
+        "--sample_testset",
+        default=1.0,
+        type=float
+    )
+    parser.add_argument(
+        "--prompt_type",
+        type=str,
+        default="regular"
     )
     
 
     args = parser.parse_args()
     '''args = parser.parse_args([
-        "--model_checkpoint", "google/t5gemma-2b-2b-prefixlm-it",
+        "--model_checkpoint", "/workspace/model_dir/generation/flan-t5-base/ner-inerd_ace05-fewnerd-fp32-w1e3-lr8e5/final_model",
+        #"--decoder_model",
+        #"--pipeline",
         "--batch_size", "32",
-        "--dataset_name", "fewnerd_small",
-        "--data_file", "/workspace/datas/few-nerd/supervised/test.preprocessed.small.csv"
+        "--dataset_name", "ace05",
+        "--data_file", "/workspace/datas/ace05/test.json.csv",
+        "--prompt_type", "inerd"
     ])'''
+
+    print(args)
     
     main(args)

@@ -344,11 +344,14 @@ def preprocess_fewnerd_conll(file_path, focus_point="big"):
 
 def json_dataset_to_inerd(file_path, json_column="NER"):
     df = pd.read_csv(file_path)
-    df[json_column] = df[json_column].apply(json_to_inerd)
+    for index, row in df.iterrows():
+        ner_dict = json.loads(row[json_column])
+        inerd_str = dict_to_inerd(ner_dict)
+        df.at[index, json_column] = inerd_str
+    
     return df
 
-def json_to_inerd(json_str):
-    ner_dict = json.loads(json_str)
+def dict_to_inerd(ner_dict):
     inerd_str = ""
     for ner_type, word_list in ner_dict.items():
         cur_entity_str = ""
@@ -366,3 +369,82 @@ def json_to_inerd(json_str):
         inerd_str += " <ES>"
     
     return inerd_str
+
+
+def preprocess_ace_conll(file_path, return_type="json"):
+    """
+    Preprocesses ACE CoNLL data from a file and returns a DataFrame.
+    
+    Args:
+        file_path (str): Path to the ACE CoNLL formatted file.
+        return_type (str): Type of NER representation to return ("json" or "inerd").
+    
+    Returns:
+        pd.DataFrame: DataFrame containing the preprocessed data.
+    """
+    with open(file_path, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+
+    length_threshold = 15
+    
+    sentence_list = []
+    ner_list = []
+    ner_type_set = set()
+    for line in lines:
+        line_json = json.loads(line)
+        
+        entire_sentence = [word for sentence in line_json["sentences"] for word in sentence]
+        
+        cur_sentence = []
+        cur_ner = dict()
+        for idx in range(len(line_json["sentences"])):
+            sentence = line_json["sentences"][idx]
+            ner_info = line_json["ner"][idx]
+            
+            cur_sentence.extend(sentence)
+                 
+            for ner in ner_info:
+                start, end, ner_type = ner
+                ner_type_set.add(ner_type)
+                
+                word = " ".join(entire_sentence[start:end+1])
+                if ner_type not in cur_ner:
+                    cur_ner[ner_type] = [word]
+                else:
+                    cur_ner[ner_type].append(word)
+            
+            # 현재 문장 길이가 기준 이상이면 저장
+            if len(cur_sentence) >= length_threshold:
+                sentence_list.append(" ".join(cur_sentence).strip())
+                
+                if return_type == "json":
+                    ner_list.append(json.dumps(cur_ner, ensure_ascii=False))
+                elif return_type == "inerd":
+                    ner_list.append(dict_to_inerd(cur_ner))
+                else:
+                    raise ValueError("Invalid return_type. Choose 'json' or 'inerd'.")
+
+                cur_sentence = []
+                cur_ner = dict()
+                
+        # 남은 문장이 있으면 저장
+        if len(cur_sentence) > 0:
+            sentence_list.append(" ".join(cur_sentence).strip())
+                
+            if return_type == "json":
+                ner_list.append(json.dumps(cur_ner, ensure_ascii=False))
+            elif return_type == "inerd":
+                ner_list.append(dict_to_inerd(cur_ner))
+            else:
+                raise ValueError("Invalid return_type. Choose 'json' or 'inerd'.")
+
+            cur_sentence = []
+            cur_ner = dict()
+        
+        
+    df = pd.DataFrame({
+        "Sentence": sentence_list,
+        "NER": ner_list
+    })
+    
+    return df, list(ner_type_set)
