@@ -26,8 +26,9 @@ VAL_DATASET_PATH = "/workspace/datas/few-nerd/supervised/dev.preprocessed.csv"
 
 # We frame the task with a prefix to guide the model.
 #PREFIX = "Extract named entities as a Json format. Select entity type from the given list.\nEntity Types: {entity_types}\nSentence: ".format(entity_types=", ".join(entity_types))
-PREFIX = "Extract named entities as a Json format. Select entity type from the given list. // {entity_types} // {sentence} "
-PREFIX_INERD = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} "
+PREFIX = "Extract named entities as a Json format. Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} "
+PREFIX_INERD = "Extract named entities as a iNERD format. Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} "
+LINE_BREAKER = "~/"  # wnut17에서는 ~/ 사용, 일반적으로는 // 사용
 # Refer to entity types by their index from the given list.
 SURFIX = "\n JSON result: "
 #PREFIX_SIM = "Entity Types: {entity_types}\n".format(entity_types=", ".join(entity_types))
@@ -92,7 +93,7 @@ def main(args):
         return {
           "messages": [
               {"role": "user", "content": prefix.format(
-                  entity_types=" ".join(entity_list), sentence=sample["Sentence"])},
+                  entity_types=" ".join(entity_list), sentence=sample["Sentence"], line_breaker=LINE_BREAKER)},
               {"role": "assistant", "content": assistant_text}
           ]
         }

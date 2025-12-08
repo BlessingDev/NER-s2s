@@ -26,15 +26,16 @@ NER_result: {'event': ['CajaMar Tenerife Bluetrail'], 'location': ['Spain', 'Eur
 """
 
 #PREFIX = "Extract named entities as a Json format. \nNow, given the sentence: "
-PREFIX = "Extract named entities as a Json format. Select entity type from the given list. // {entity_types} // {sentence} // "
-PREFIX_INERD = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} // <CT> "
+PREFIX = "Extract named entities as a Json format. Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} {line_breaker} "
+#PREFIX_INERD = "List all named entities in order using the format Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} {line_breaker} <CT> "
+PREFIX_INERD = "List all named entities in order following iNERD format. You can select entity types from given list. {line_breaker} {entity_types} {line_breaker} {sentence}"
 PREFIX_INERD_TEMPLATE = "Extract named entities as a iNERD format. Select entity type from the given list. // {entity_types} // {sentence} "
-LINE_BREAK_INDICATOR = " //"
+LINE_BREAK_INDICATOR = "#/"
 SURFIX = "\n JSON result: "
 few_shot_PREFIX = f"Extract named entities as a Json format. Examples are: {data_string}\nNow, given the sentence: "
 
 MAX_INPUT_LENGTH = 1024
-MAX_TARGET_LENGTH = 512
+MAX_TARGET_LENGTH = 1024
 
 def main(args):
     if len(args.output_file) == 0:
@@ -74,14 +75,19 @@ def main(args):
             )
         elif "t5" in args.model_checkpoint:
             from model_code.inerd_modeling_t5 import T5ForConditionalGeneration
+            inerd_version = 1
+            if args.prompt_type == "inerd2":
+                inerd_version = 2
+            
             saved_model = T5ForConditionalGeneration.from_pretrained(
                 args.model_checkpoint,
-                device_map="auto"
+                device_map="auto",
+                inerd_version=inerd_version
             )
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.model_checkpoint)
-    if args.prompt_type == "inerd":
+    if args.prompt_type == "inerd" or args.prompt_type == "inerd2":
         # Initialize iNERD special tokens
         if args.decoder_model:
             saved_model.initialize_inerd(
@@ -117,10 +123,10 @@ def main(args):
             else:
                 entity_list = entity_types_dict[args.dataset_name]
             
-            if args.prompt_type == "inerd":
-                inputs_with_prefix.append(PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx]))
+            if args.prompt_type == "inerd" or args.prompt_type == "inerd2":
+                inputs_with_prefix.append(PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx], line_breaker=LINE_BREAK_INDICATOR))
             else:
-                inputs_with_prefix.append(PREFIX.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx]))
+                inputs_with_prefix.append(PREFIX.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx], line_breaker=LINE_BREAK_INDICATOR))
         #inputs_with_prefix = [PREFIX + sentence + "\n" for sentence in batch["Sentence"]]
         
         # Tokenize the entire batch
@@ -172,7 +178,7 @@ def main(args):
             else:
                 entity_list = entity_types_dict[args.dataset_name]
                 
-            if args.prompt_type == "inerd":
+            if args.prompt_type == "inerd" or args.prompt_type == "inerd2":
                 user_message = PREFIX_INERD_TEMPLATE.format(entity_types=" ".join(entity_list), sentence=batch["Sentence"][idx])
             else:
                 user_message = PREFIX.format(entity_types=", ".join(entity_list)) + batch["Sentence"][idx]
@@ -184,7 +190,7 @@ def main(args):
 
         prompts = pipe.tokenizer.apply_chat_template(inputs_with_prefix, tokenize=False, add_generation_prompt=True)
         
-        if args.prompt_type == "inerd":
+        if args.prompt_type == "inerd" or args.prompt_type == "inerd2":
             #prompts = [prompt + "<CT> " for prompt in prompts]
             
             saved_model.initialize_inerd_batch(pipe.tokenizer(prompts, padding=True, return_tensors="pt").input_ids)
@@ -197,7 +203,7 @@ def main(args):
             predictions = [o[0]["generated_text"][len(prompts[i]):] for i, o in enumerate(outputs)]
             
             # <CT> 제거하기
-            if args.prompt_type == "inerd":
+            if args.prompt_type == "inerd" or args.prompt_type == "inerd2":
                 for i in range(len(predictions)):
                     predictions[i] = predictions[i][4:].strip()
         else:
@@ -279,13 +285,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     '''args = parser.parse_args([
-        "--model_checkpoint", "/workspace/model_dir/generation/flan-t5-base/ner-inerd_ace05-fewnerd-fp32-w1e3-lr8e5/final_model",
+        "--model_checkpoint", "/workspace/model_dir/generation/flan-t5-base/ner-inerd2_given-conll2003-curriculum2-fp32-w1e3-lr1e4-seed_42-staretegy2/final_model",
         #"--decoder_model",
         #"--pipeline",
         "--batch_size", "32",
-        "--dataset_name", "ace05",
-        "--data_file", "/workspace/datas/ace05/test.json.csv",
-        "--prompt_type", "inerd"
+        "--dataset_name", "conll2003",
+        "--data_file", "/workspace/datas/conll2003/testb.inerd2.csv",
+        "--prompt_type", "inerd2"
     ])'''
 
     print(args)

@@ -1,0 +1,56 @@
+------ace2005------
+1. flan-t5-base
+2. inerd v2 decoding
+3. 20 epoch, 1e-4 lr
+NER Evaluation Results:
+  total_samples: 711
+  parsed_samples: 710
+  parsing_accuracy: 0.9985935302390999
+NER Evaluation Results (without category):
+  precision: 0.7968193686209352
+  recall: 0.8311463233473632
+  f1: 0.8136209403780902
+
+1. flan-t5-base
+2. inerd v2, curriculum v2
+3. 20 epoch, 1e-4 lr
+NER Evaluation Results:
+  total_samples: 711
+  parsed_samples: 708
+  parsing_accuracy: 0.9957805907172996
+NER Evaluation Results (without category):
+  precision: 0.7972648752399232
+  recall: 0.8270283723245395
+  f1: 0.8118739311018812
+
+1. flan-t5-base
+2. inerd decoding
+3. 20 epoch, 8e-5 lr
+4. random entity list
+NER Evaluation Results:
+  total_samples: 1170
+  parsed_samples: 1170
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.7261819484240688
+  recall: 0.7405040175310446
+  f1: 0.7332730560578662
+
+1. gemma-3-270m-it
+2. inerd decoding
+3. 20 epoch, 8e-5 lr
+NER Evaluation Results:
+  total_samples: 1170
+  parsed_samples: 1170
+  parsing_accuracy: 1.0
+NER Evaluation Results (without cate gory):
+  precision: 0.6772518474136209
+  recall: 0.6192476260043828
+  f1: 0.6469522083373079
+
+
+------genia------
+1. flan-t5-base
+2. inerd v2 decoding
+3. 20 epoch, 1e-4 lr
+

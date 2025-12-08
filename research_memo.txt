@@ -197,3 +197,27 @@ NER Evaluation Results (without category):
 2. fewnerd small에 random entity list로 학습한
 3. flan-t5-large 모델 사용
 4. 인코더 classification 학습
+
+
+---
+커리큘럼 v1 증강학습은
+원본 샘플을 하나의 그룹 배치로 묶고 타입을 하나씩 생성토록 한 것
+
+커리큘럼 v2 증강학습은
+원본 샘플을 두 가지로 분리. 하나씩 생성하는 것을 앞 부분 그룹 배치에, 그리고 전체 생성을 배치 뒷 부분에 모음. 그야말로 쉬운 걸 먼저 가르치고 어려운 걸 나중에 가르치는 커리큘럼 정석 배치
+
+restaurant 원본 type 리스트 Amenity Price Hours Rating Restaurant_Name Cuisine Location Dish
+각각 점수 / test gt 개수
+Amenity 72.96 / 533
+Price 86.12 / 171
+Hours 71.85 / 212
+Rating 82.35 / 201
+Restaurant_Name 85.64 / 402
+Cuisine 84.68 / 532
+Location 85.70 / 812
+Dish 81.66 / 288
+
+실패한 데이터셋:
+ontonotes5
+wnut17
+ace05

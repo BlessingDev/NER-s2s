@@ -1,22 +1,26 @@
-dataset_path="ace05"
+dataset_path="wnut17"
 model_name="gemma-3-270m-it"
 
-dataset_methods=("ace05")
+dataset_name="wnut17"
+dataset_methods=("wnut17")
 trainset_paths=("/workspace/datas/${dataset_path}/train.inerd.csv")
 validset_paths=("/workspace/datas/${dataset_path}/dev.inerd.csv")
 
 #--encoder_weight /workspace/model_dir/classification/${model_name}/encoder-switch-conll2003-ner-lr2e-5-cosine_restart/final_model \
 # t5-base fewnerd batch 32
 
+# jnlpba 100/50
+# wnut17 10/5
+
 index=0
 while [ $index -lt 1 ]
 do
     python /workspace/ner_generation/generation_decoder_train.py \
         --model_checkpoint google/gemma-3-270m-it \
-        --output_dir /workspace/model_dir/generation/${model_name}/ner-inerd_${dataset_methods[$index]}-fp32-w1e3-lr8e5 \
+        --output_dir /workspace/model_dir/generation/${model_name}/ner-inerd_${dataset_methods[$index]}-${dataset_name}-fp32-w1e3-lr8e5 \
         --train_epochs 20 \
         --weight_decay 0.001 \
-        --warmup_steps 20 \
+        --warmup_steps 10 \
         --logging_steps 5 \
         --batch_size 6 \
         --gradient_accumulation_steps 16 \

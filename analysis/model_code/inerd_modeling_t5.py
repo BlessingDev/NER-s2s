@@ -78,7 +78,7 @@ def inerd_decoding(current_score: torch.Tensor, sentence_input_ids: list, entity
     
     return current_score
 
-def inerd2_decoding(current_score: torch.Tensor, sentence_input_ids: list, sentence_id_index: int, entity_list_ids: set, eos_token_id: int, ct_token_id: int, es_token_id: int, tcs_token_id: int, generated_ids=None):
+def inerd2_decoding(current_score: torch.Tensor, sentence_input_ids: list, entity_list_ids: set, eos_token_id: int, ct_token_id: int, es_token_id: int, tcs_token_id: int, generated_ids=None):
     # current_score: (vocab_size,)
     # input_ids: (seq_len)
     # generated_ids: (gen_len)
@@ -96,24 +96,17 @@ def inerd2_decoding(current_score: torch.Tensor, sentence_input_ids: list, sente
                 generating_type = True
                 break
 
-    if previous_token_id == eos_token_id or sentence_id_index >= len(sentence_input_ids):
-        sentence_id_index = len(sentence_input_ids)
-        return current_score, sentence_id_index
+    if previous_token_id == eos_token_id:
+        return current_score
     
-    sentence_input_ids_set = set(sentence_input_ids[sentence_id_index:])
+    sentence_input_ids_set = set(sentence_input_ids)
     sentence_input_ids_set.add(3)  # space token id
     # 여기서부터 어휘 사전 점수 조절
     if previous_token_id == ct_token_id or previous_token_id == es_token_id:
         # ct이거나 es라면 문장에서 named entity를 추출
-        # named entity의 첫 토큰을 생성하는 부분
         allowed_index = sentence_input_ids_set
         allowed_index.add(eos_token_id)
         current_score = mask_logits(allowed_index, current_score)
-        
-        # 첫 토큰을 기준으로 그 앞 토큰만 생성할 수 있도록 제한
-        generated_token = torch.argmax(current_score).item()
-        generated_token_index = sentence_input_ids[sentence_id_index:].index(generated_token)
-        sentence_id_index = sentence_id_index + generated_token_index
     elif previous_token_id in sentence_input_ids_set and not generating_type:
         following_token_in_sentence_indices = [sentence_input_ids[i + 1] for i, id in enumerate(sentence_input_ids) if id == previous_token_id and i + 1 < len(sentence_input_ids)]
         allowed_index = set(following_token_in_sentence_indices)
@@ -127,7 +120,7 @@ def inerd2_decoding(current_score: torch.Tensor, sentence_input_ids: list, sente
         current_score = mask_logits(allowed_index, current_score)
         
     
-    return current_score, sentence_id_index
+    return current_score
 
 class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
     _keys_to_ignore_on_load_unexpected = [
@@ -189,14 +182,13 @@ class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
             input_ids_str = " ".join([str(id) for id in input_ids_list])
             input_ids_line_list = input_ids_str.split(' ' + self.line_break_indicator + ' ')
             
-            sentence_ids = input_ids_line_list[-1].strip().split(" ")
+            sentence_ids = input_ids_line_list[-2].strip().split(" ")
             self.sentence_ids.append([int(id) for id in sentence_ids if id != ''])
             
-            entity_list_ids = input_ids_line_list[-2].strip().split(" ")
+            entity_list_ids = input_ids_line_list[-3].strip().split(" ")
             entity_list_ids = [int(id) for id in entity_list_ids if id != '']
             self.entity_list_ids.append(set(entity_list_ids))
-        
-        self.sentence_id_indices = [0 for _ in range(batch_size)]
+
         self.generated_ids = [list() for _ in range(batch_size)]
     
     def parallelize(self, device_map=None):
@@ -431,10 +423,9 @@ class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
 
             current_score = lm_logits_batch[-1]
             
-            masked_score, sentence_id_index = self.inerd_decoder(
+            masked_score = self.inerd_decoder(
                 current_score,
                 sentence_ids,
-                self.sentence_id_indices[batch_idx],
                 entity_list_ids,
                 self.config.eos_token_id,
                 self.ct_token_id,
@@ -442,8 +433,6 @@ class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
                 self.tcs_token_id,
                 self.generated_ids[batch_idx]
             )
-            
-            self.sentence_id_indices[batch_idx] = sentence_id_index
             lm_logits[batch_idx][-1] = masked_score
 
             self.generated_ids[batch_idx].append(torch.argmax(masked_score).item())
@@ -484,7 +473,7 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
     ]
     _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "lm_head.weight"]
 
-    def __init__(self, config: T5Config):
+    def __init__(self, config: T5Config, encoder_loss_alpha=1.0):
         super().__init__(config)
         self.model_dim = config.d_model
 
@@ -503,6 +492,9 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
         self.decoder = T5Stack(decoder_config, self.shared)
 
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        
+        self.encoder_classifier = nn.Linear(config.d_model, 2)  # binary classification layer
+        self.alpha = encoder_loss_alpha  # weight for classification loss
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -575,12 +567,12 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
         inputs_embeds: Optional[torch.FloatTensor] = None,
         decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
+        encoder_labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        contrastive_label: Optional[torch.LongTensor] = None,
     ) -> Union[tuple[torch.FloatTensor], Seq2SeqLMOutput]:
         r"""
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
@@ -625,10 +617,9 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
             Labels for computing the sequence classification/regression loss. Indices should be in `[-100, 0, ...,
             config.vocab_size - 1]`. All labels set to `-100` are ignored (masked), the loss is only computed for
             labels in `[0, ..., config.vocab_size]`
+        encoder_labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+            Labels for computing the sequence classification/regression loss from the encoder hidden states. Indices should be in `[0, 1]` for binary classification.
 
-        contrastive_label (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
-            Labels for computing the encoder contrastive loss. Indices should be in `[0, 1]`, where 1 indicates
-            the positive class and 0 indicates the negative class
         Examples:
 
         ```python
@@ -681,6 +672,15 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
             )
 
         hidden_states = encoder_outputs[0]
+
+        # encoder representation에 대해 loss 걸기
+        encoder_loss = None
+        if encoder_labels is not None:
+            classifier_logits = self.encoder_classifier(hidden_states)  # (batch_size, 2)
+            
+            encoder_labels = encoder_labels.to(classifier_logits.device)
+            loss_fct = CrossEntropyLoss(ignore_index=-100)
+            encoder_loss = loss_fct(classifier_logits.view(-1, classifier_logits.size(-1)), encoder_labels.view(-1))
         
         if self.model_parallel:
             torch.cuda.set_device(self.decoder.first_device)
@@ -737,24 +737,21 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
             loss_fct = CrossEntropyLoss(ignore_index=-100)
             # move labels to correct device to enable PP
             labels = labels.to(lm_logits.device)
-            # generation loss는 contrastive가 positive인 경우에만 계산
-            if contrastive_label is not None:
-                contrastive_label = contrastive_label.to(labels.device)
-                positive_mask = contrastive_label.eq(1).unsqueeze(1).expand_as(labels)
-                labels = labels.masked_fill(~positive_mask, -100)
-            
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if not return_dict:
             output = (lm_logits,) + decoder_outputs[1:] + encoder_outputs
             return ((loss,) + output) if loss is not None else output
+
+        if encoder_loss is not None:
+            loss = loss + self.alpha * encoder_loss
         
         return Seq2SeqLMOutput(
             loss=loss,
             logits=lm_logits,
             past_key_values=decoder_outputs.past_key_values,
-            decoder_hidden_states=decoder_outputs.last_hidden_state,
+            decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,
