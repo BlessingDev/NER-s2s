@@ -779,7 +779,7 @@ def preprocess_ace_conll_to_ordered_inerd(file_path, inerd_version=1, focus_poin
     Returns:
         pd.DataFrame: DataFrame containing the preprocessed data.
     """
-    ignore_types=["Sentence", "Crime", "Contact-Info", "Job-Title", "Numeric"]
+    ignore_types=["Sentence", "Crime", "Contact-Info", "Job-Title", "Numeric", "TIM"]
     dataset_obj = None
     with open(file_path, 'r', encoding='utf-8') as file:
         dataset_obj = json.load(file)

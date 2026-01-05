@@ -129,7 +129,7 @@ def inerd2_decoding(current_score: torch.Tensor, sentence_input_ids: list, sente
     
     return current_score, sentence_id_index
 
-class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
+class T5ForConditionalInerdGeneration(T5PreTrainedModel, GenerationMixin):
     _keys_to_ignore_on_load_unexpected = [
         "decoder.block.0.layer.1.EncDecAttention.relative_attention_bias.weight",
     ]
@@ -416,37 +416,38 @@ class T5ForConditionalGeneration(T5PreTrainedModel, GenerationMixin):
         lm_logits = self.lm_head(sequence_output)
         
         # inerd decoding 적용
-        batch_size = lm_logits.size(0)
+        '''batch_size = lm_logits.size(0)
         seq_len = lm_logits.size(1)
         if seq_len > 400:
             # 너무 긴 시퀀스는 논리 오류 가능성 있음
             print("Warning: seq_len > 400 during inerd decoding.")
         
         for batch_idx in range(batch_size):
-            lm_logits_batch = lm_logits[batch_idx]
-            # 입력 문장만 추출
-            
-            sentence_ids = self.sentence_ids[batch_idx].copy()
-            entity_list_ids = self.entity_list_ids[batch_idx].copy()
+            if seq_len > 0:
+                lm_logits_batch = lm_logits[batch_idx]
+                # 입력 문장만 추출
+                    
+                sentence_ids = self.sentence_ids[batch_idx].copy()
+                entity_list_ids = self.entity_list_ids[batch_idx].copy()
 
-            current_score = lm_logits_batch[-1]
-            
-            masked_score, sentence_id_index = self.inerd_decoder(
-                current_score,
-                sentence_ids,
-                self.sentence_id_indices[batch_idx],
-                entity_list_ids,
-                self.config.eos_token_id,
-                self.ct_token_id,
-                self.es_token_id,
-                self.tcs_token_id,
-                self.generated_ids[batch_idx]
-            )
-            
-            self.sentence_id_indices[batch_idx] = sentence_id_index
-            lm_logits[batch_idx][-1] = masked_score
+                current_score = lm_logits_batch[-1]
+                    
+                masked_score, sentence_id_index = self.inerd_decoder(
+                    current_score,
+                    sentence_ids,
+                    self.sentence_id_indices[batch_idx],
+                    entity_list_ids,
+                    self.config.eos_token_id,
+                    self.ct_token_id,
+                    self.es_token_id,
+                    self.tcs_token_id,
+                    self.generated_ids[batch_idx]
+                )
+                    
+                self.sentence_id_indices[batch_idx] = sentence_id_index
+                lm_logits[batch_idx][-1] = masked_score
 
-            self.generated_ids[batch_idx].append(torch.argmax(masked_score).item())
+            self.generated_ids[batch_idx].append(torch.argmax(lm_logits[batch_idx][-1]).item())'''
             
         # 추가한 코드 끝
 
@@ -503,6 +504,8 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
         self.decoder = T5Stack(decoder_config, self.shared)
 
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        
+        self.decoder_transform = nn.Linear(config.d_model, config.d_model, bias=True)
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -739,22 +742,31 @@ class T5ForConditionalGenerationTrain(T5PreTrainedModel, GenerationMixin):
             labels = labels.to(lm_logits.device)
             # generation loss는 contrastive가 positive인 경우에만 계산
             if contrastive_label is not None:
-                contrastive_label = contrastive_label.to(labels.device)
-                positive_mask = contrastive_label.eq(1).unsqueeze(1).expand_as(labels)
-                labels = labels.masked_fill(~positive_mask, -100)
-            
-            loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
+                contrastive_mask = contrastive_label.to(labels.device).bool()
+                #positive_mask = contrastive_label.eq(1).unsqueeze(1).expand_as(labels)
+                #labels = labels.masked_fill(~positive_mask, -100)
+                labels_masked = labels[contrastive_mask]
+                lm_logits_masked = lm_logits[contrastive_mask]
+                
+                loss = loss_fct(lm_logits_masked.view(-1, lm_logits_masked.size(-1)), labels_masked.view(-1))
+            else:
+                loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
 
         if not return_dict:
             output = (lm_logits,) + decoder_outputs[1:] + encoder_outputs
             return ((loss,) + output) if loss is not None else output
         
+        decoder_output_transform = decoder_outputs.last_hidden_state
+        
+        #self.decoder_transform.to(sequence_output.device)
+        #decoder_output_transform = self.decoder_transform(decoder_outputs.last_hidden_state) # contrastive learning을 함에 있어 decoder hidden state의 공간을 변환
+        
         return Seq2SeqLMOutput(
             loss=loss,
             logits=lm_logits,
             past_key_values=decoder_outputs.past_key_values,
-            decoder_hidden_states=decoder_outputs.last_hidden_state,
+            decoder_hidden_states=decoder_output_transform,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
             encoder_last_hidden_state=encoder_outputs.last_hidden_state,

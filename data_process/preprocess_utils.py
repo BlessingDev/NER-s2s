@@ -455,6 +455,38 @@ def construct_contrastive_samples(data_file_path, entity_type, num_negatives=1, 
             # 2) span을 밀거나 당기기거나 늘리기
             word_list, type_list = inerd_to_ordered_list(row["NER"], inerd_version=inerd_version)
             tag_list = inerd_to_tag_list(word_list, type_list, row["Sentence"])
+            
+            doc = nlp(row["Sentence"])
+            noun_phrases = [chunk.text for chunk in doc.noun_chunks]
+            # 새로운 Named Entity 단어를 noun chunk 중 선택
+            mock_type_list = ['-'] * len(noun_phrases)
+                    
+            noun_tag_list = inerd_to_tag_list(noun_phrases, mock_type_list, row["Sentence"])
+            # noun chunk와 noun tag list를 비교하여 tag로 감지된 것만 유효한 것으로 처리
+            # noun tag list가 기준
+            valid_noun_phrases = []
+            for noun_tag in noun_tag_list:
+                cur_word = row["Sentence"].split()[noun_tag[0]:noun_tag[1]]
+                cur_word_str = ' '.join(cur_word)
+                valid_noun_phrases.append(cur_word_str)
+                    
+                    # 기존 word_list에 없는 noun chunk만 선택
+            candidate_nouns = []
+                    
+            tag_position_list = [(tag[0], tag[1]) for tag in tag_list]
+            for np_idx, np in enumerate(valid_noun_phrases):
+                np_tag = noun_tag_list[np_idx]
+                np_position = (np_tag[0], np_tag[1])
+                # span이 겹치는지 확인 (flan ner)
+                span_check = True
+                for tag in tag_list:
+                    if not (np_position[1] <= tag[0] or np_position[0] >= tag[1]):
+                        span_check = False
+                        break
+                if span_check:
+                    # 겹치지 않음
+                    candidate_nouns.append((np_idx, np))
+            
             assert len(tag_list) == len(word_list), "Tag list and word list length mismatch."
             
             endurance = 50
@@ -465,7 +497,9 @@ def construct_contrastive_samples(data_file_path, entity_type, num_negatives=1, 
                 negative_word_list = []
                 negative_type_list = []
                 # 어떤 기법으로 negative sample을 생성할지 무작위로 선택
-                negative_type = random.choice([1, 2])
+                # 1: entity type swap, 2: span 옮기기
+                # 3: 같은 거 두 번 예측, 4: 없는 것을 예측
+                negative_type = random.choice([1, 1, 2, 2, 3, 4, 4]) # 1, 2, 4 비율 높임
                 
                 # 어떤 단어에 negative를 적용할지 선택
                 target_idx = random.randint(0, len(word_list) - 1)
@@ -522,6 +556,64 @@ def construct_contrastive_samples(data_file_path, entity_type, num_negatives=1, 
                         cur_neg_tag = (new_start_idx, new_end_idx, ner_type)
                         if cur_neg_tag not in generated_negative_samples_set:
                             generated_negative_samples_set.add(cur_neg_tag)
+                            
+                            inerd_str = lists_to_ordered_inerd(negative_word_list, negative_type_list, inerd_version=inerd_version)
+                            contrastive_data_list.append({
+                                "Sentence": row["Sentence"],
+                                "NER": inerd_str,
+                                "contrastive_label": 0,
+                                "group_id": idx
+                            })
+                            generated_negatives += 1
+                            cur_trial = 0
+                        else:
+                            cur_trial += 1
+                elif negative_type == 3:
+                    # 같은 거 두 번 예측
+                    negative_word_list = word_list.copy()
+                    negative_type_list = type_list.copy()
+                    
+                    cur_neg_tag = tag_list[target_idx]
+                    if cur_neg_tag not in generated_negative_samples_set:
+                        generated_negative_samples_set.add(cur_neg_tag)
+                        
+                        negative_word_list.insert(target_idx, word_list[target_idx])
+                        negative_type_list.insert(target_idx, type_list[target_idx])
+                        
+                        inerd_str = lists_to_ordered_inerd(negative_word_list, negative_type_list, inerd_version=inerd_version)
+                        contrastive_data_list.append({
+                            "Sentence": row["Sentence"],
+                            "NER": inerd_str,
+                            "contrastive_label": 0,
+                            "group_id": idx
+                        })
+                        generated_negatives += 1
+                        cur_trial = 0
+                    else:
+                        cur_trial += 1
+                elif negative_type == 4:
+                    # 없는 것을 추가로 예측
+                    negative_word_list = word_list.copy()
+                    negative_type_list = type_list.copy()
+                    
+                    if len(candidate_nouns) == 0:
+                        cur_trial += 1
+                    else:
+                        np_idx, new_entity = random.choice(candidate_nouns)
+                        new_entity_type = random.choice(entity_types)
+                        
+                        new_tag = (noun_tag_list[np_idx][0], noun_tag_list[np_idx][1], new_entity_type)
+                        if new_tag not in generated_negative_samples_set:
+                            generated_negative_samples_set.add(new_tag)
+                            
+                            # 새로운 단어와 타입을 추가함에 앞서 span 시작 위치를 기준으로 정렬하여 삽입 위치 찾기
+                            tag_position_list.append((noun_tag_list[np_idx][0], noun_tag_list[np_idx][1]))
+                            tag_position_list = sorted(tag_position_list, key=lambda x: x[0])
+                            insert_position = tag_position_list.index((noun_tag_list[np_idx][0], noun_tag_list[np_idx][1]))
+                            
+                             # 삽입
+                            negative_word_list.insert(insert_position, new_entity)
+                            negative_type_list.insert(insert_position, new_entity_type)
                             
                             inerd_str = lists_to_ordered_inerd(negative_word_list, negative_type_list, inerd_version=inerd_version)
                             contrastive_data_list.append({

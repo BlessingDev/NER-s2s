@@ -3,6 +3,7 @@
 * flan-t5-base
 * inerd v2
 * lr 1e-4, batch 128, weight_decay 1e-3, 40/20
+Correct: 5209 Predicted: 5737 Ground Truth: 5628
 NER Evaluation Results:
   total_samples: 3683
   parsed_samples: 3683
@@ -13,17 +14,56 @@ NER Evaluation Results (without category):
   f1: 0.9166739991201056
 
 * flan-t5-base
-* inerd v2, contrastive v1
-* lr 1e-4, batch 128, 130/20
-Correct: 5251 Predicted: 5737 Ground Truth: 5628
+* inerd v2, curriculum
+* lr 1e-4, batch 128, weight_decay 1e-3, 85/20
+Correct: 5220 Predicted: 5733 Ground Truth: 5628
 NER Evaluation Results:
   total_samples: 3683
   parsed_samples: 3683
   parsing_accuracy: 1.0
 NER Evaluation Results (without category):
-  precision: 0.9152867352274708
-  recall: 0.9330135039090263
-  f1: 0.9240651121865375
+  precision: 0.9105180533751962
+  recall: 0.9275053304904051
+  f1: 0.9189331925006601
+
+* flan-t5-base
+* inerd v2, curriculum
+* lr 1e-4, batch 256, weight_decay 1e-3, 42/20
+Correct: 5203 Predicted: 5693 Ground Truth: 5628
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.91392938696645
+  recall: 0.9244847192608386
+  f1: 0.9191767511703913
+
+* flan-t5-base
+* inerd v2, contrastive v1, contrastive_lambda 0.8, temperature 0.1
+* lr 1e-4, batch 64, 130/20
+Correct: 5313 Predicted: 5788 Ground Truth: 5628
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9179336558396682
+  recall: 0.9440298507462687
+  f1: 0.9307988787666432
+
+* flan-t5-base
+* inerd v2, contrastive v1, contrastive_lambda 1.0, temperature 0.1
+* lr 1e-4, batch 128, 130/20
+Correct: 5300 Predicted: 5820 Ground Truth: 5628
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.9106529209621993
+  recall: 0.9417199715707179
+  f1: 0.9259259259259258
 
 * flan-t5-large
 * inerd v2
@@ -101,3 +141,17 @@ NER Evaluation Results (without category):
   precision: 0.9273840769903762
   recall: 0.9417199715707179
   f1: 0.9344970466366923
+
+---simple prompt---
+* flan-t5-base
+* inerd v2
+* lr 1e-4, batch 128, weight_decay 1e-3, 40/20
+Correct: 5170 Predicted: 5724 Ground Truth: 5628
+NER Evaluation Results:
+  total_samples: 3683
+  parsed_samples: 3683
+  parsing_accuracy: 1.0
+NER Evaluation Results (without category):
+  precision: 0.903214535290007
+  recall: 0.9186211798152096
+  f1: 0.9108527131782946

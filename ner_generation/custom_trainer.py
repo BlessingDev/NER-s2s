@@ -202,53 +202,65 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         ) -> Union[torch.Tensor, tuple[torch.Tensor, Any]]:
         outputs = model(**inputs)
         contrastive_label = inputs.get("contrastive_label")
+        decoder_label = inputs.get("labels")
         generation_loss = outputs.get("loss")
         encoder_last_hidden = outputs.get("encoder_last_hidden_state")
         decoder_last_hidden = outputs.get("decoder_hidden_states")
         
         loss = generation_loss
-        # contrastive loss 계산
-        encoder_hidden_pooled = torch.mean(encoder_last_hidden, dim=1)  # (batch_size, hidden_size)
-        decoder_hidden_pooled = torch.mean(decoder_last_hidden, dim=1)  # (batch_size, hidden_size)
-        
-        # InfoNCE loss
-        # simmilarity 척도는 cosine 유사도
-        cosine_sim = torch.nn.functional.cosine_similarity(encoder_hidden_pooled.unsqueeze(1), decoder_hidden_pooled.unsqueeze(0), dim=2)  # (batch_size, batch_size)
-        
-        positive_mask = torch.ones(cosine_sim.size(0), device=cosine_sim.device).bool()
-        if contrastive_label is not None:
-            positive_mask = contrastive_label.bool()
-        
-        positive_mask.requires_grad = False
-        
-        positive_values = torch.diagonal(cosine_sim)[positive_mask]  # (num_positives, )
-        positive_silimarities = torch.exp(positive_values / self.temperature_parameter)  # (batch_size,)
-        
-        # 분모 계산 전에 자기 샘플에 해당하는 negative 샘플만 더하도록 마스크 생성
-        '''start_idx = 0
-        negative_sample_mask = list()
-        for i in range(1, contrastive_label.size(0)):
-            if contrastive_label[i] == 1:
-                cur_mask = [0] * (start_idx) + [1] * (i - start_idx) + [0] * (cosine_sim.size(0) - i)
+        if self.train_method == "contrastive" and contrastive_label is not None:
+            # contrastive loss 계산
+            # batch wide로 loop를 돌면서 hidden state에서 padding된 부분을 제거하여 pooling 수행
+            batch_size = encoder_last_hidden.size(0)
+            encoder_hidden_pooled = torch.zeros((batch_size, encoder_last_hidden.size(2)), device=encoder_last_hidden.device)
+            decoder_hidden_pooled = torch.zeros((batch_size, decoder_last_hidden.size(2)), device=decoder_last_hidden.device)
+            for batch_idx in range(batch_size):
+                cur_batch_encoder_mask = inputs['attention_mask'][batch_idx].bool()  # (seq_len, )
+                cur_batch_decoder_mask = decoder_label[batch_idx].ne(-100)  # (tgt_seq_len, )
+                
+                # mixed pooling
+                encoder_hidden_pooled[batch_idx] = torch.sum(encoder_last_hidden[batch_idx][cur_batch_encoder_mask], dim=0) + torch.mean(encoder_last_hidden[batch_idx][cur_batch_encoder_mask], dim=0)
+                decoder_hidden_pooled[batch_idx] = torch.sum(decoder_last_hidden[batch_idx][cur_batch_decoder_mask], dim=0) + torch.mean(decoder_last_hidden[batch_idx][cur_batch_decoder_mask], dim=0)
+                
+            
+            # InfoNCE loss
+            # simmilarity 척도는 cosine 유사도
+            cosine_sim = torch.nn.functional.cosine_similarity(encoder_hidden_pooled.unsqueeze(1), decoder_hidden_pooled.unsqueeze(0), dim=2)  # (batch_size, batch_size)
+            
+            positive_mask = torch.ones(cosine_sim.size(0), device=cosine_sim.device).bool()
+            if contrastive_label is not None:
+                positive_mask = contrastive_label.bool()
+            
+            positive_mask.requires_grad = False
+            
+            positive_values = torch.diagonal(cosine_sim)[positive_mask]  # (num_positives, )
+            positive_silimarities = torch.exp(positive_values / self.temperature_parameter)  # (batch_size,)
+            
+            # 분모 계산 전에 자기 샘플에 해당하는 negative 샘플만 더하도록 마스크 생성
+            '''start_idx = 0
+            negative_sample_mask = list()
+            for i in range(1, contrastive_label.size(0)):
+                if contrastive_label[i] == 1:
+                    cur_mask = [0] * (start_idx) + [1] * (i - start_idx) + [0] * (cosine_sim.size(0) - i)
+                    negative_sample_mask.append(cur_mask)
+                    start_idx = i
+            # 마지막 샘플 처리
+            if len(negative_sample_mask) < positive_silimarities.size(0):
+                cur_mask = [0] * (start_idx) + [1] * (cosine_sim.size(0) - start_idx)
                 negative_sample_mask.append(cur_mask)
-                start_idx = i
-        # 마지막 샘플 처리
-        if len(negative_sample_mask) < positive_silimarities.size(0):
-            cur_mask = [0] * (start_idx) + [1] * (cosine_sim.size(0) - start_idx)
-            negative_sample_mask.append(cur_mask)
-        
-        negative_sample_mask = torch.tensor(negative_sample_mask, device=cosine_sim.device, requires_grad=False).int() # (num_positives, batch_size)'''
-        # 여기까지 마스크 생성
-        # 마스크 적용시 성능 하락 발생
-        
-        exp_simmilarities = torch.exp(cosine_sim / self.temperature_parameter)[positive_mask] # (num_positives, batch_size)
-        #exp_simmilarities = exp_simmilarities * negative_sample_mask  # (num_positives, batch_size)
-        exp_simmilarities = torch.sum(exp_simmilarities, dim=1)  # (num_positives, )
-        
-        contrastive_loss = -torch.log(positive_silimarities / exp_simmilarities).mean()
+            
+            negative_sample_mask = torch.tensor(negative_sample_mask, device=cosine_sim.device, requires_grad=False).int() # (num_positives, batch_size)'''
+            # 여기까지 마스크 생성
+            # 마스크 적용시 성능 하락 발생
+            
+            exp_simmilarities = torch.exp(cosine_sim / self.temperature_parameter)[positive_mask] # (num_positives, batch_size)
+            #exp_simmilarities = exp_simmilarities * negative_sample_mask  # (num_positives, batch_size)
+            exp_simmilarities = torch.sum(exp_simmilarities, dim=1)  # (num_positives, )
+            
+            contrastive_loss = -torch.log(positive_silimarities / exp_simmilarities).mean()
 
-        # 두 loss 합치기
-        loss = self.generation_lambda * generation_loss + self.contrastive_lambda * contrastive_loss
+            # 두 loss 합치기
+            loss = self.generation_lambda * generation_loss + self.contrastive_lambda * contrastive_loss
         
         return (loss, outputs) if return_outputs else loss
     

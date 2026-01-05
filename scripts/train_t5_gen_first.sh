@@ -1,13 +1,13 @@
 #dataset_path=("fewnerd")
-model_name="flan-t5-xl"
+model_name="flan-t5-base"
 
-dataset_name=("conll2003")
+dataset_name=("conll2003_masktoken")
 dataset_methods=("conll2003")
 inerd_method=("inerd2")
 trainset_paths=("/workspace/datas/conll2003/train.inerd2.csv")
 validset_paths=("/workspace/datas/conll2003/dev.inerd2.csv")
-batch_size=(64)
-gradient_accumulation_steps=(2)
+batch_size=(128)
+gradient_accumulation_steps=(1)
 warmup_steps=(40)
 logging_steps=(20)
 seed=(42)
@@ -40,6 +40,7 @@ do
         --learning_rate 1e-4 \
         --dataset_name ${dataset_methods[$index]} \
         --token_setting inerd \
+        --prompt_setting inerd \
         --train_file ${trainset_paths[$index]} \
         --validation_file ${validset_paths[$index]} \
         --seed ${seed[$index]}

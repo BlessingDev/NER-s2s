@@ -42,6 +42,7 @@ VAL_DATASET_PATH = "/workspace/datas/few-nerd/supervised/dev.preprocessed.big.cs
 PREFIX = "Extract named entities as a Json format. Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} {line_breaker} "
 PREFIX_INERD = "List all named entities in order following iNERD format. You can select entity types from given list. {line_breaker} {entity_types} {line_breaker} {sentence}"
 # Refer to entity types by their index from the given list.
+PROMPT_SIMPLE = "{entity_types} {line_breaker} {sentence}"
 
 LINE_BREAKER = "#/" # wnut17에서는 ~/ 사용
 SURFIX = "\n JSON result: "
@@ -112,12 +113,16 @@ def main(args):
     # ------------------------------------
     # Load the pre-trained T5 model
     if "t5gemma" in args.model_checkpoint:
-        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, attn_implementation='eager', device_map="auto", dropout_rate=args.dropout_rate, dtype=torch.bfloat16, use_cache=False)
+        model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, attn_implementation='eager', device_map="auto", dropout_rate=args.dropout_rate, dtype=torch.float32, use_cache=False)
     elif "t5" in args.model_checkpoint:
         from model_code.inerd_modeling_t5 import T5ForConditionalGenerationTrain
         
         dtype = torch.float32
         model = T5ForConditionalGenerationTrain.from_pretrained(args.model_checkpoint, device_map="auto", dtype=dtype)
+        
+        decoder_transform = model.decoder_transform
+        torch.nn.init.xavier_uniform_(decoder_transform.weight)
+        torch.nn.init.zeros_(decoder_transform.bias)
     
     # 필요한 토큰의 추가는 이미 1차 학습에서 수행됨
     #if args.token_setting == "inerd":
@@ -143,9 +148,11 @@ def main(args):
                 entity_list = entity_types_dict[args.dataset_name]
 
             sentence = ""
-            if args.token_setting == "inerd":
+            if args.prompt_setting == "inerd":
                 sentence = PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
-            else:
+            elif args.prompt_setting == "simple":
+                sentence = PROMPT_SIMPLE.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
+            elif args.prompt_setting == "json":
                 sentence = PREFIX.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
             
             inputs.append(sentence)
@@ -221,6 +228,9 @@ def main(args):
         load_best_model_at_end=True,
         save_total_limit=3
     )
+    training_args.contrastive_temperature = args.contrastive_temperature
+    training_args.contrastive_lambda = args.contrastive_lambda
+    training_args.generation_lambda = args.generation_lambda
     
     
     # Create the Trainer
@@ -320,11 +330,24 @@ if __name__ == "__main__":
         help="Token setting: normal, t5_json, inerd"
     )
     parser.add_argument(
+        "--prompt_setting",
+        type=str,
+        default="simple",
+        help="Prompt setting: simple, json, inerd"
+    )
+    parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
         default=1,
         help="Number of gradient accumulation steps"
     )
+    parser.add_argument(
+        "--gpus",
+        default="0,1,2,3",
+        type=str,
+        help="GPU device ids to use"
+    )
+    
     
     args = parser.parse_args()
     '''args = parser.parse_args(
@@ -334,12 +357,15 @@ if __name__ == "__main__":
             "--batch_size", "32",
             #"--encoder_train_file", "/workspace/datas/fewnerd/supervised/train.binary.csv",
             "--output_dir", "/workspace/model_dir/test",
-            "--train_file", "/workspace/datas/conll2003/train.inerd2.csv",
-            "--validation_file", "/workspace/datas/conll2003/dev.inerd2.csv",
+            "--train_file", "/workspace/datas/conll2003/train.inerd2.contrastive2.csv",
+            "--validation_file", "/workspace/datas/conll2003/dev.inerd2.contrastive2.csv",
             "--dataset_name", "conll2003",
             "--token_setting", "inerd",
+            "--prompt_setting", "inerd",
+            "--train_method", "contrastive",
         ]
     )'''
     
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
     print(args)
     main(args)

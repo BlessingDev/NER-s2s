@@ -346,9 +346,9 @@ if __name__ == "__main__":
     # args = parser.parse_args()
     args = parser.parse_args([
         "--prediction_file",
-        "/workspace/datas/generated/flan-t5-xl-first-ner-inerd2_conll2003-conll2003-fp32-w1e2-lr1e4-seed_42-tuned-conll2003.csv",
+        "/workspace/datas/generated/flan-t5-base-second-ner-inerd2_conll2003-conll2003_contrastive_validonly_temp40_gen100_cont100_mixpool-fp32-w1e3-lr1e4-seed_42-tuned-conll2003.csv",
         "--structure_type", "inerd2",
-#        "--tokenizer_path", "/workspace/model_dir/reference/ontonotes-plmarker"
+#        "--tokenizer_path" , "/workspace/model_dir/reference/ontonotes-plmarker"
     ])
     
     print(args)

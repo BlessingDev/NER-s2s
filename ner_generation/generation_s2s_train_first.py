@@ -39,6 +39,7 @@ VAL_DATASET_PATH = "/workspace/datas/few-nerd/supervised/dev.preprocessed.big.cs
 PREFIX = "Extract named entities as a Json format. Select entity type from the given list. {line_breaker} {entity_types} {line_breaker} {sentence} {line_breaker} "
 PREFIX_INERD = "List all named entities in order following iNERD format. You can select entity types from given list. {line_breaker} {entity_types} {line_breaker} {sentence}"
 # Refer to entity types by their index from the given list.
+PROMPT_SIMPLE = "named entity recognition {line_breaker} {entity_types} {line_breaker} {sentence}"
 
 LINE_BREAKER = "#/" # wnut17에서는 ~/ 사용
 SURFIX = "\n JSON result: "
@@ -109,14 +110,16 @@ def main(args):
     # 3. FINE-TUNE THE MODEL
     # ------------------------------------
     # Load the pre-trained T5 model
+    mask_token = "<mask>"
     if "t5gemma" in model_name:
         model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, attn_implementation='eager', device_map="auto", dropout_rate=args.dropout_rate, dtype=torch.bfloat16, use_cache=False)
     elif "t5" in model_name:
+        mask_token = "<extra_id_0>"
         dtype = torch.bfloat16 if args.bf16 else torch.float32
         model = AutoModelForSeq2SeqLM.from_pretrained(args.model_checkpoint, device_map="auto", dtype=dtype)
     
     if args.token_setting == "inerd":
-        tokenizer.add_tokens(['<CT>', '<ES>', '<TCS>', LINE_BREAKER])
+        tokenizer.add_tokens(['<ES>', '<TCS>', LINE_BREAKER])
         model.resize_token_embeddings(len(tokenizer))
     
     tokenizer.add_tokens(['{', '}', "~", "\\", '・', '`', "``"])
@@ -138,19 +141,14 @@ def main(args):
                 entity_list = entity_types_dict[args.dataset_name]
 
             sentence = ""
-            if args.token_setting == "inerd":
-                sentence = PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
-            else:
+            if args.prompt_setting == "inerd":
+                sentence = PREFIX_INERD.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER, mask_token=mask_token)
+            elif args.prompt_setting == "simple":
+                sentence = PROMPT_SIMPLE.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
+            elif args.prompt_setting == "json":
                 sentence = PREFIX.format(entity_types=" ".join(entity_list), sentence=examples["Sentence"][idx], line_breaker=LINE_BREAKER)
             
-            if args.chat_template:
-                inputs.append([{"role": "user", "content": sentence}])
-            else:
-                inputs.append(sentence)
-
-        #inputs = [PREFIX_SIM + doc + '\n' for doc in examples["Sentence"]]
-        if args.chat_template:
-            inputs = tokenizer.apply_chat_template(inputs, tokenize=False, add_generation_token=True)
+            inputs.append(sentence)
             
         model_inputs = tokenizer(inputs, truncation=True)
         
@@ -172,7 +170,7 @@ def main(args):
         # Tokenize the target NER JSON strings
         # The `text_target` is the NER string itself.
         # 빈 문자열이 NoneType으로 들어오는 문제를 해결
-        ner_strings = [ner if (ner is not None) else "" for ner in examples["NER"]]
+        ner_strings = [mask_token + ner if (ner is not None) else mask_token for ner in examples["NER"]]
         labels = tokenizer(text_target=ner_strings, truncation=True)
         
         model_inputs["labels"] = labels["input_ids"]
@@ -304,10 +302,6 @@ if __name__ == "__main__":
         "--batch_size", type=int, default=8
     )
     parser.add_argument(
-        "--chat_template",
-        action="store_true"
-    )
-    parser.add_argument(
         "--resume_from_checkpoint",
         action="store_true"
     )
@@ -328,6 +322,12 @@ if __name__ == "__main__":
         type=str,
         default="normal",
         help="Token setting: normal, t5_json, inerd"
+    )
+    parser.add_argument(
+        "--prompt_setting",
+        type=str,
+        default="simple",
+        help="Prompt setting: simple, json, inerd"
     )
     parser.add_argument(
         "--gradient_accumulation_steps",
